@@ -1,0 +1,687 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CYCLICAL INTERACTION 2D-3D</title>
+    <style>
+        body { margin: 0; overflow: hidden; background: #000; font-family: Arial, sans-serif; }
+        canvas { display: block; }
+        
+        #controls {
+            position: absolute; top: 15px; left: 10px; color: white; font-family: monospace;
+            background-color: rgba(0,0,0,0.85); padding: 15px; border-radius: 8px; border: 2px solid #555;
+            z-index: 100; width: 310px; max-width: 310px; max-height: 95vh; overflow-y: auto;
+            transition: width 0.3s, height 0.3s, padding 0.3s;
+        }
+        
+        .slider-container { margin-bottom: 12px; }
+        label { display: block; margin-bottom: 4px; font-size: 13px; }
+        input[type="range"] { width: 100%; accent-color: #ffcc00; }
+        #amplitudeValue, #frequencyValue, #gammaValue { display: inline-block; width: 55px; text-align: right; font-weight: bold; color: #ffcc00; }
+        button { padding: 8px 12px; background-color: #333; color: white; border: 1px solid #ffcc00; border-radius: 4px; cursor: pointer; font-family: monospace; width: 100%; text-align: left; }
+        button:hover { background-color: #00aa66; }
+        button.active { background-color: #ffcc00; color: black; font-weight: bold; }
+        .button-group { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
+        
+        #energyPanel { margin-top: 18px; padding: 10px; background: rgba(18,22,35,0.98); border: 1px solid #ffcc00; border-radius: 6px; }
+        .energy-bar-bg { flex:1; background:#0a1a2a; height:10px; border-radius:5px; overflow:hidden; border:1px solid #222; }
+        .mono-small { font-size: 11px; line-height: 1.6; color: #ddd; }
+        .highlight { color: #ffcc00; font-weight: bold; }
+        
+        #icDiagramContainer {
+            position: absolute; top: 15px; right: 15px; width: 480px;
+            background: rgba(0,0,0,0.92); border: 2px solid #00ffcc; border-radius: 12px;
+            z-index: 120; padding: 10px; color: #ddd; font-family: monospace;
+            box-shadow: 0 0 12px rgba(0,255,204,0.15);
+            transition: width 0.3s, height 0.3s, padding 0.3s;
+        }
+        
+        #icDiagramContainer h3 { margin:0 0 6px 0; color:#00ffcc; font-size:12px; text-align:center; letter-spacing:0.5px; }
+        #icCanvas { width: 460px; height: 460px; background: radial-gradient(circle at center, #0a1a1a 0%, #000000 85%); border:1px solid #333; border-radius:8px; display:block; margin:0 auto; }
+        .ic-legend { font-size:10px; line-height:1.45; margin-top:8px; color:#ccc; }
+        .ic-legend b { font-weight: bold; }
+
+        /* --- Estilos de Minimização --- */
+        .minimized {
+            width: 34px !important;
+            height: 34px !important;
+            min-height: 34px !important;
+            padding: 5px !important;
+            overflow: hidden !important;
+            background-color: rgba(0,0,0,0.6) !important;
+            box-shadow: none !important;
+        }
+        .minimized > *:not(.toggle-btn) {
+            display: none !important;
+        }
+        .toggle-btn {
+            background-color: #333; color: white; border: 1px solid #ffcc00;
+            border-radius: 4px; cursor: pointer; font-family: monospace;
+            width: 100%; text-align: center; font-size: 20px; padding: 0;
+            margin-bottom: 15px; height: 30px; line-height: 26px; font-weight: bold;
+        }
+        .toggle-btn:hover { background-color: #ffcc00; color: black; }
+        
+        #icDiagramContainer .toggle-btn { border-color: #00ffcc; }
+        #icDiagramContainer .toggle-btn:hover { background-color: #00ffcc; color: black; }
+        
+        .minimized .toggle-btn {
+            margin-bottom: 0;
+            border: none;
+            background: transparent;
+            height: 100%;
+        }
+        .minimized .toggle-btn:hover {
+            background: transparent;
+            color: #ffcc00;
+        }
+        #icDiagramContainer.minimized .toggle-btn:hover { color: #00ffcc; }
+
+        /* --- Ajustes para Mobile / Tablets --- */
+        @media (max-width: 800px) {
+            #controls { width: calc(100vw - 40px); left: 15px; max-width: none; }
+            #icDiagramContainer { width: calc(100vw - 40px); right: 15px; top: auto; bottom: 15px; }
+            #icCanvas { width: 100%; height: auto; max-width: 400px; }
+            /* Inicia os painéis minimizados por padrão em telas pequenas */
+            #controls, #icDiagramContainer { /* As classes serão adicionadas via JS abaixo */ }
+        }
+    </style>
+</head>
+<body>
+    <div id="controls">
+        <button class="toggle-btn" onclick="togglePanel('controls')" title="Minimizar/Maximizar Painel">≡</button>
+        <h2 style="margin:0 0 14px 0; color:#ffcc00; font-size:15px;">Cyclic Interaction between Compalphas in a Vacuum Tube</h2>
+
+        <div class="slider-container">
+            <label for="amplitudeSlider">Oscillatory Amplitude: <span id="amplitudeValue">20°</span> | <span id="amplitudeRadValue">0.349 rad</span></label>
+            <input type="range" id="amplitudeSlider" min="0" max="180" value="20" step="1">
+        </div>
+
+        <div class="slider-container">
+            <label for="frequencySlider">Oscillatory Frequency: <span id="frequencyValue">1.0Hz</span></label>
+            <input type="range" id="frequencySlider" min="0.1" max="15" value="1.0" step="0.1">
+        </div>
+
+        <div class="slider-container">
+            <label for="gammaSlider">Damping γ: <span id="gammaValue">0.00</span></label>
+            <input type="range" id="gammaSlider" min="0" max="1" value="0" step="0.01">
+        </div>
+
+        <div class="button-group">
+            <button id="btnMode3" class="active">Ca1 >...< Ca9 (R=1)</button>
+            <button id="btnMode2">Ca1 <> Ca5 <> Ca9 (R=4)</button>
+            <button id="btnMode1">Ca1 <> Ca9 (R=8)</button>
+            <button id="togglePlanoAlpha">Show/Hide Alpha Planes</button>
+            <button id="btnReenergize" style="border-color:#00ff88; color:#00ff88;">↻ Re-energize System</button>
+            <div style="height:1px; background:#444; margin:6px 0;"></div>
+            <button id="btnToggleComphalphas" style="border-color:#ff4444; color:#ffaaaa;">👁 Hide Comphalphas</button>
+            <button id="btnTogglePlasma" style="border-color:#00ffff; color:#88ffff;">👁 Show Plasma</button>
+            <button id="btnToggleVacuum" style="border-color:#8888ff; color:#aaaaff;">👁 Hide Vacuum Tube</button>
+        </div>
+
+        <div id="energyPanel">
+            <h3 style="margin:0 0 8px 0; color:#ffcc00; font-size:12px;">OSCILLATORY ENERGY — E ∝ A²·f²·ΣR²</h3>
+            <div class="mono-small">
+                <div><span class="highlight">E_total</span> = 2π²·ΣR²·A²·f²·env² : <span id="eTotal" class="highlight">0</span></div>
+                <div style="display:flex; gap:6px; align-items:center; margin:6px 0;">
+                    <span style="width:32px;">E_kin</span>
+                    <div class="energy-bar-bg"><div id="eKinBar" style="height:100%; width:50%; background:linear-gradient(90deg,#00aaff,#00ffcc);"></div></div>
+                </div>
+                <div style="display:flex; gap:6px; align-items:center; margin-bottom:6px;">
+                    <span style="width:32px;">E_pot</span>
+                    <div class="energy-bar-bg"><div id="ePotBar" style="height:100%; width:50%; background:linear-gradient(90deg,#ff4444,#ffaa00);"></div></div>
+                </div>
+                <div>E_kin: <span id="eKin">0</span> | E_pot: <span id="ePot">0</span></div>
+                <div>Envelope: <span id="envelopeVal">100%</span> | γ·t: <span id="gammaT">0</span></div>
+                <div>Inertia ΣR²: <span id="inertiaVal">9</span> | Mode: <span id="modeVal">9×R=1</span></div>
+                <div style="margin-top:6px; font-size:10px; color:#aaa;">When γ>0: A_eff = A·e<sup>-γ·Δt</sup> → E(t)=E₀·e<sup>-2γ·Δt</sup></div>
+            </div>
+        </div>
+
+        <div id="plasmaPanel" style="margin-top:12px; padding:8px; background: rgba(0,20,35,0.95); border:1px solid #00ffff; border-radius:6px;">
+            <h3 style="margin:0 0 6px 0; color:#00ffff; font-size:11px;">PLASMA BEAM — COLOR vs AMPLITUDE (0-90°)</h3>
+            <div class="mono-small" style="font-size:10px;">
+                <div>Color: <span id="plasmaColorLabel" style="font-weight:bold; color:#ff0000;">RED</span> | Band: <span id="plasmaBandLabel">0-12.8°</span> | Amp_eff: <span id="plasmaAmpLabel">20°</span></div>
+                <div>Energy: <span id="plasmaEnergyLabel" style="color:#ffcc00;">I: 0</span> | Pulsing: <span style="color:#00ffff;">|sin(ωt)| + freq</span></div>
+                <div style="display:flex; gap:2px; margin-top:6px; height:10px;">
+                    <div style="flex:1; background:#ff0000; border-radius:2px;" title="0-12.8° RED"></div>
+                    <div style="flex:1; background:#ff8000; border-radius:2px;" title="12.8-25.7° ORANGE"></div>
+                    <div style="flex:1; background:#ffff00; border-radius:2px;" title="25.7-38.6° YELLOW"></div>
+                    <div style="flex:1; background:#00ff00; border-radius:2px;" title="38.6-51.4° GREEN"></div>
+                    <div style="flex:1; background:#0080ff; border-radius:2px;" title="51.4-64.3° BLUE"></div>
+                    <div style="flex:1; background:#8a2be2; border-radius:2px;" title="64.3-77.1° VIOLET"></div>
+                    <div style="flex:1; background:#ffffff; border-radius:2px;" title="77.1-90° WHITE"></div>
+                </div>
+                <div style="margin-top:4px; color:#aaa; font-size:9px;">90° / 7 ≈ 12.86° per band | >90° = WHITE | Macro = plasma only</div>
+            </div>
+        </div>
+    </div>
+
+    <div id="icDiagramContainer">
+        <button class="toggle-btn" onclick="togglePanel('icDiagramContainer')" title="Minimizar/Maximizar Diagrama">≡</button>
+        <h3>CYCLICAL INTERACTION DIAGRAM (CID)</h3>
+        <canvas id="icCanvas" width="800" height="800"></canvas>
+        <div class="ic-legend">
+            <div style="color:#00ffcc;">● Blue CCI: center = intersection of green Alpha Planes | radius = distance from center to Compalpha A and B | diameter = distance between Alpha Axes</div>
+            <div><span style="color:#ff4444;">— Alpha Axis A and B</span> oscillate opposite (counter-clockwise / clockwise) | <span style="color:#00ff00;">— Alpha Plane A and B</span> 90° fixed on each axis</div>
+            <div><span style="color:#00aaff;">--- CIP</span> Common Interaction Plane | <span style="color:#ffcc00;">● Movable CCI Center</span> | θA=<span id="icThetaA">-20°</span> θB=<span id="icThetaB">+20°</span> Δ=<span id="icDelta">40°</span></div>
+            <div>CCI diam=<span id="icDiam" style="color:#fff; font-weight:bold;">0</span> px | Radius=<span id="icRaio">0</span> px | Center Y=<span id="icCentroY">0</span> px | When θ→0°, diam→AB</div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.134.0/examples/js/controls/OrbitControls.js"></script>
+
+    <script>
+        // --- FUNÇÃO PARA MINIMIZAR/MAXIMIZAR PAINÉIS ---
+        function togglePanel(panelId) {
+            const panel = document.getElementById(panelId);
+            panel.classList.toggle('minimized');
+        }
+
+        // Auto-minimizar em telas pequenas no carregamento (Opcional, melhora a UX)
+        if (window.innerWidth <= 800) {
+            document.getElementById('controls').classList.add('minimized');
+            document.getElementById('icDiagramContainer').classList.add('minimized');
+        }
+
+        // ----- ORIGINAL 3D SCENE 100% - NO DISTORTION -----
+        const scene = new THREE.Scene(); scene.background = new THREE.Color(0x000000);
+        const camera = new THREE.PerspectiveCamera(40, window.innerWidth/window.innerHeight, 0.1, 1000); camera.position.set(-15,18,25);
+        const renderer = new THREE.WebGLRenderer({antialias:true}); renderer.setSize(window.innerWidth,window.innerHeight); renderer.shadowMap.enabled=true; document.body.appendChild(renderer.domElement);
+        const controls = new THREE.OrbitControls(camera, renderer.domElement); controls.enableDamping=true; controls.dampingFactor=0.05; controls.target.set(0,4,0);
+        scene.add(new THREE.AmbientLight(0xaaaaaa,0.6));
+        const dirLight=new THREE.DirectionalLight(0xffffff,0.8); dirLight.position.set(10,20,15); dirLight.castShadow=true; scene.add(dirLight);
+        const backLight=new THREE.DirectionalLight(0x88ccff,0.4); backLight.position.set(-10,10,-10); scene.add(backLight);
+        const metalMaterial=new THREE.MeshPhongMaterial({color:0xaaaaaa, shininess:80, specular:0x444444});
+        const baseMaterial=new THREE.MeshPhongMaterial({color:0x555555, shininess:30});
+        const base=new THREE.Mesh(new THREE.BoxGeometry(20,1,5),baseMaterial); base.position.set(0,0.5,0); base.receiveShadow=true; scene.add(base);
+        const rodGeometry=new THREE.BoxGeometry(0.5,8,4);
+        const rodLeft=new THREE.Mesh(rodGeometry,metalMaterial); rodLeft.position.set(-9.75,4.5,0); scene.add(rodLeft);
+        const rodRight=new THREE.Mesh(rodGeometry,metalMaterial); rodRight.position.set(9.75,4.5,0); scene.add(rodRight);
+        const coneGeometry=new THREE.ConeGeometry(0.5,2,32);
+        const coneLeft=new THREE.Mesh(coneGeometry,metalMaterial); coneLeft.position.set(-9,8,0); coneLeft.rotation.z=-Math.PI/2; scene.add(coneLeft);
+        const coneRight=new THREE.Mesh(coneGeometry,metalMaterial); coneRight.position.set(9,8,0); coneRight.rotation.z=Math.PI/2; scene.add(coneRight);
+
+        const totalLength=Math.abs(rodRight.position.x-rodLeft.position.x);
+        const tubeDiameter=totalLength/10; const tubeRadius=tubeDiameter/2; const cylLength=totalLength-tubeDiameter;
+        const glassMaterial=new THREE.MeshPhysicalMaterial({color:0xe6f7ff, metalness:0, roughness:0.04, transmission:1.0, thickness:0.8, ior:1.45, transparent:true, opacity:0.38, side:THREE.DoubleSide, clearcoat:1.0, clearcoatRoughness:0.08});
+        const glassTubeGroup=new THREE.Group(); const cylGeo=new THREE.CylinderGeometry(tubeRadius,tubeRadius,cylLength,64,1,false); const cylMesh=new THREE.Mesh(cylGeo,glassMaterial); cylMesh.rotation.z=Math.PI/2; glassTubeGroup.add(cylMesh);
+        const sphereGeo=new THREE.SphereGeometry(tubeRadius,48,32); const capL=new THREE.Mesh(sphereGeo,glassMaterial); capL.position.x=-cylLength/2; glassTubeGroup.add(capL); const capR=new THREE.Mesh(sphereGeo,glassMaterial); capR.position.x=cylLength/2; glassTubeGroup.add(capR);
+        glassTubeGroup.position.set((rodLeft.position.x+rodRight.position.x)/2,8,0); scene.add(glassTubeGroup);
+        const edgeMat=new THREE.MeshBasicMaterial({color:0x88ddff,wireframe:true,transparent:true,opacity:0.06}); const edgeCyl=new THREE.Mesh(new THREE.CylinderGeometry(tubeRadius*1.001,tubeRadius*1.001,cylLength,32),edgeMat); edgeCyl.rotation.z=Math.PI/2; glassTubeGroup.add(edgeCyl);
+        const grid=new THREE.GridHelper(30,30,0x333333,0x222222); grid.position.y=0.01; scene.add(grid);
+
+        // ----- STATE VARIABLES (must be before plasma) -----
+        let comphalphas=[]; 
+        let amplitude=20*Math.PI/180; // in radians
+        let frequency=1.0;
+        let gammaDamping=0; 
+        let envelope=1; 
+        let envelopeAtChange=1; 
+        let lastGammaChangeTime=0; 
+        let sumR2=9;
+        let oscillationPhase = 0;
+        let lastFrameTime = performance.now()*0.001;
+        // Visibility states
+        let comphalphasVisible = true;
+        let plasmaVisible = false;
+        let vacuumTubeVisible = true;
+
+        // ----- PLASMA BEAM (MACROSCOPIC LIGHT) -----
+        const plasmaGroup = new THREE.Group();
+        plasmaGroup.position.set(0,8,0);
+        const plasmaLength = 18; // between electrode tips -9 to +9
+        // Core thin beam
+        const plasmaCoreGeo = new THREE.CylinderGeometry(0.04, 0.04, plasmaLength, 32);
+        const plasmaCoreMat = new THREE.MeshBasicMaterial({color:0xff0000});
+        const plasmaCore = new THREE.Mesh(plasmaCoreGeo, plasmaCoreMat);
+        plasmaCore.rotation.z = Math.PI/2;
+        plasmaGroup.add(plasmaCore);
+        // Inner glow
+        const plasmaGlowGeo = new THREE.CylinderGeometry(0.14, 0.14, plasmaLength, 32);
+        const plasmaGlowMat = new THREE.MeshBasicMaterial({color:0xff0000, transparent:true, opacity:0.45, blending:THREE.AdditiveBlending, depthWrite:false});
+        const plasmaGlow = new THREE.Mesh(plasmaGlowGeo, plasmaGlowMat);
+        plasmaGlow.rotation.z = Math.PI/2;
+        plasmaGroup.add(plasmaGlow);
+        // Outer glow
+        const plasmaOuterGeo = new THREE.CylinderGeometry(0.32, 0.32, plasmaLength, 24);
+        const plasmaOuterMat = new THREE.MeshBasicMaterial({color:0xff0000, transparent:true, opacity:0.18, blending:THREE.AdditiveBlending, depthWrite:false});
+        const plasmaOuter = new THREE.Mesh(plasmaOuterGeo, plasmaOuterMat);
+        plasmaOuter.rotation.z = Math.PI/2;
+        plasmaGroup.add(plasmaOuter);
+        // Light to illuminate tube interior
+        const plasmaLight = new THREE.PointLight(0xff0000, 1.5, 12);
+        plasmaLight.position.set(0,0,0);
+        plasmaGroup.add(plasmaLight);
+        plasmaGroup.visible = plasmaVisible;
+        scene.add(plasmaGroup);
+
+        const PLASMA_COLORS = [0xff0000, 0xff8000, 0xffff00, 0x00ff00, 0x0080ff, 0x8a2be2, 0xffffff];
+        const PLASMA_COLOR_NAMES = ["RED","ORANGE","YELLOW","GREEN","BLUE","VIOLET","WHITE"];
+        const PLASMA_BANDS = ["0-12.8°","12.8-25.7°","25.7-38.6°","38.6-51.4°","51.4-64.3°","64.3-77.1°","77.1-90°"];
+
+        function getPlasmaColorForAmplitude(deg){
+            const clamped = Math.max(0, Math.min(deg, 89.999));
+            const bandSize = 90/7; // ~12.857
+            const idx = Math.min(6, Math.floor(clamped / bandSize));
+            const tInBand = (clamped - idx*bandSize)/bandSize; // 0-1 inside band
+            return {hex: PLASMA_COLORS[idx], name: PLASMA_COLOR_NAMES[idx], band: PLASMA_BANDS[idx], index: idx, t: tInBand, clamped: clamped};
+        }
+
+        function updatePlasmaVisuals(ampEffDeg, angularFreq, sinW, cosW, Etotal, Enorm){
+            const {hex, name, band, index, t, clamped} = getPlasmaColorForAmplitude(ampEffDeg);
+            // Base colors
+            plasmaCoreMat.color.setHex(hex);
+            plasmaGlowMat.color.setHex(hex);
+            plasmaOuterMat.color.setHex(hex);
+            plasmaLight.color.setHex(hex);
+
+            // --- STRONGER PULSATION ---
+            const absSin = Math.abs(sinW);
+            const absCos = Math.abs(cosW);
+            const freqNorm = Math.min(1, frequency/15);
+            const ampNorm = Math.min(1, ampEffDeg/90);
+            // Strong pulse driven by instantaneous oscillation + frequency + amplitude
+            const strongPulse = 1.0 + absSin*0.75 + absCos*0.25 + freqNorm*0.35 + ampNorm*0.25;
+            const fastFlicker = 1.0 + 0.12*Math.sin(oscillationPhase*7.3) + 0.08*Math.sin(oscillationPhase*13.7);
+            const finalPulse = strongPulse * fastFlicker;
+
+            // Scale core and glows - pulsating much stronger now
+            plasmaCore.scale.set(1, finalPulse*0.9, finalPulse*0.9);
+            plasmaGlow.scale.set(1, finalPulse*1.15, finalPulse*1.15);
+            plasmaOuter.scale.set(1, finalPulse*1.35, finalPulse*1.35);
+
+            // --- WHITE INTENSITY INCREASING WITH ENERGY ---
+            // Base intensity from amplitude
+            let baseIntensity = 0.3 + ampNorm*0.9;
+            // Add frequency contribution (E ~ f^2)
+            baseIntensity += freqNorm*0.6;
+            // Add kinetic bursts
+            baseIntensity += absCos*0.5;
+
+            // White boost: when in WHITE band, intensity grows sharply
+            let whiteBoost = 0;
+            if(index === 6){
+                // t goes 0->1 inside white band (77.1-90)
+                const whiteProgress = t; // 0 at start of white, 1 at 90deg
+                whiteBoost = 0.8 + whiteProgress*2.2 + ampNorm*1.2; // ramps up
+                // Make white really bloom
+                plasmaCoreMat.color.setHex(0xffffff);
+                // Glow becomes slightly bluish-white then pure white
+                const lerpToWhite = 0.6 + whiteProgress*0.4;
+                plasmaGlowMat.color.setRGB(lerpToWhite, lerpToWhite, 1.0);
+                plasmaOuterMat.color.setRGB(1.0, 1.0, 1.0);
+                plasmaLight.color.setHex(0xffffff);
+            } else if(index === 5 && t > 0.6){
+                // Pre-white transition: violet -> white mix
+                const mix = (t-0.6)/0.4;
+                plasmaGlowMat.color.setRGB(0.6+0.4*mix, 0.4*mix, 0.85+0.15*mix);
+            }
+
+            // Opacity and light intensity driven by total oscillatory energy Enorm (0-1)
+            const energyBoost = Enorm !== undefined ? Enorm : ampNorm;
+            const glowOpacity = (0.28 + baseIntensity*0.55 + whiteBoost*0.35) * (0.6 + energyBoost*0.8);
+            const outerOpacity = (0.12 + baseIntensity*0.30 + whiteBoost*0.35) * (0.5 + energyBoost*0.9);
+
+            plasmaGlowMat.opacity = Math.min(0.95, glowOpacity);
+            plasmaOuterMat.opacity = Math.min(0.65, outerOpacity);
+
+            // Light intensity: base + white boost + energy + pulse
+            let lightIntensity = 0.8 + baseIntensity*3.2 + whiteBoost*5.5 + absSin*1.5 + energyBoost*2.5;
+            // Extra flash when white at high energy
+            if(index === 6){
+                lightIntensity += 2.0 + whiteBoost*2.0;
+                // Expand outer glow size for white bloom
+                const bloom = 1.0 + whiteBoost*0.6;
+                plasmaOuter.scale.set(bloom, finalPulse*1.5*bloom, finalPulse*1.5*bloom);
+            }
+
+            plasmaLight.intensity = lightIntensity;
+            plasmaLight.distance = 8 + baseIntensity*6 + whiteBoost*8;
+
+            // Core thickness also pulses with energy
+            const coreThick = 0.04 + ampNorm*0.05 + absSin*0.04 + (index===6 ? whiteBoost*0.06 : 0);
+            plasmaCore.scale.y = finalPulse*(0.7 + coreThick*8);
+            plasmaCore.scale.z = finalPulse*(0.7 + coreThick*8);
+
+            // UI update
+            const labelEl = document.getElementById('plasmaColorLabel');
+            if(labelEl){
+                labelEl.textContent = name + (index===6 ? ' ★ MAX' : '');
+                labelEl.style.color = '#'+hex.toString(16).padStart(6,'0');
+                if(index===6) labelEl.style.textShadow = '0 0 8px #fff';
+                else labelEl.style.textShadow = 'none';
+            }
+            const bandEl = document.getElementById('plasmaBandLabel');
+            if(bandEl) bandEl.textContent = band + (index===6 ? ` (${(whiteBoost*100).toFixed(0)}% bloom)` : '');
+            const ampEl = document.getElementById('plasmaAmpLabel');
+            if(ampEl) ampEl.textContent = ampEffDeg.toFixed(1)+'°' + (Enorm!==undefined ? ` | E:${(Enorm*100).toFixed(0)}%` : '');
+            const energyEl = document.getElementById('plasmaEnergyLabel');
+            if(energyEl) energyEl.textContent = 'I: '+lightIntensity.toFixed(1) + (index===6 ? ' +WHITE BOOST' : '');
+        }
+
+
+        function createMeridianLayer(group,radius,numMeridians,numSegments,material){ for(let i=0;i<numMeridians;i++){ const u=(i/numMeridians)*Math.PI*2; const pts=[]; for(let j=0;j<=numSegments;j++){ const v=(j/numSegments)*Math.PI*2; pts.push(new THREE.Vector3(radius*(1+Math.cos(v))*Math.cos(u), radius*Math.sin(v), radius*(1+Math.cos(v))*Math.sin(u))); } group.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), material)); } }
+        function createAlphaStructure(name,dir,pos,radius){ const g=new THREE.Group(); g.position.copy(pos); g.name=name; const sph=new THREE.Mesh(new THREE.SphereGeometry(0.05,16,16), new THREE.MeshBasicMaterial({color:0xFF0000})); g.add(sph); const cg=new THREE.Group(); g.add(cg); createMeridianLayer(cg, radius,36,48,new THREE.LineBasicMaterial({color:0x1270ff})); createMeridianLayer(cg, radius*0.5,36,48,new THREE.LineBasicMaterial({color:0xffffff, transparent:true, opacity:0.95})); const plane=new THREE.Mesh(new THREE.PlaneGeometry(radius*2.2,radius*2.2), new THREE.MeshBasicMaterial({color:0x00ff00, transparent:true, opacity:0.35, side:THREE.DoubleSide})); plane.rotation.x=Math.PI/2; plane.name=name+'_AlphaPlane'; g.add(plane); const arrow=new THREE.ArrowHelper(dir, new THREE.Vector3(0,-dir.y*2.5,0), 5, 0xff0000,1,0.25); g.add(arrow); return g; }
+        function createComphalphas(mode){ 
+            comphalphas.forEach(c=>scene.remove(c)); 
+            comphalphas=[]; 
+            let cfgs=[]; 
+            const L=-8,R=8; 
+            if(mode===1){ cfgs=[{pos:L,radius:8,dir:new THREE.Vector3(0,1,0)},{pos:R,radius:8,dir:new THREE.Vector3(0,-1,0)}]; sumR2=128; document.getElementById('modeVal').textContent='2×R=8'; } 
+            else if(mode===2){ cfgs=[{pos:L,radius:4,dir:new THREE.Vector3(0,1,0)},{pos:0,radius:4,dir:new THREE.Vector3(0,-1,0)},{pos:R,radius:4,dir:new THREE.Vector3(0,1,0)}]; sumR2=48; document.getElementById('modeVal').textContent='3×R=4'; } 
+            else { for(let i=0;i<9;i++) cfgs.push({pos:L+i*2,radius:1,dir:(i%2===0)?new THREE.Vector3(0,1,0):new THREE.Vector3(0,-1,0)}); sumR2=9; document.getElementById('modeVal').textContent='9×R=1'; } 
+            document.getElementById('inertiaVal').textContent=sumR2; 
+            cfgs.forEach((cfg,idx)=>{ 
+                const ca=createAlphaStructure('Ca'+(idx+1),cfg.dir,new THREE.Vector3(cfg.pos,8,0),cfg.radius); 
+                ca.visible = comphalphasVisible; // respect current hide/show state
+                comphalphas.push(ca); 
+                scene.add(ca); 
+            }); 
+        }
+        function updateUI(mode){ document.querySelectorAll('#controls button').forEach(b=>b.classList.remove('active')); const b=document.getElementById('btnMode'+mode); if(b) b.classList.add('active'); }
+        document.getElementById('btnMode1').addEventListener('click',()=>{ createComphalphas(1); updateUI(1); });
+        document.getElementById('btnMode2').addEventListener('click',()=>{ createComphalphas(2); updateUI(2); });
+        document.getElementById('btnMode3').addEventListener('click',()=>{ createComphalphas(3); updateUI(3); });
+        document.getElementById('togglePlanoAlpha').addEventListener('click',()=>{ comphalphas.forEach(c=>{ const p=c.getObjectByName(c.name+'_AlphaPlane'); if(p) p.visible=!p.visible; }); });
+        document.getElementById('amplitudeSlider').addEventListener('input',(e)=>{ const deg=parseFloat(e.target.value); amplitude=deg*Math.PI/180; document.getElementById('amplitudeValue').textContent=deg+'°'; document.getElementById('amplitudeRadValue').textContent=amplitude.toFixed(3)+' rad'; });
+        // --- FIXED FREQUENCY LISTENER ---
+        document.getElementById('frequencySlider').addEventListener('input',(e)=>{ 
+            frequency=parseFloat(e.target.value); 
+            document.getElementById('frequencyValue').textContent=frequency.toFixed(1)+'Hz'; 
+        });
+        document.getElementById('gammaSlider').addEventListener('input',(e)=>{ const now=performance.now()*0.001; envelopeAtChange=envelope; lastGammaChangeTime=now; gammaDamping=parseFloat(e.target.value); document.getElementById('gammaValue').textContent=gammaDamping.toFixed(2); });
+        document.getElementById('btnReenergize').addEventListener('click',()=>{ 
+            envelope=1; envelopeAtChange=1; lastGammaChangeTime=performance.now()*0.001; 
+            oscillationPhase = 0; // reset phase on re-energize
+            lastFrameTime = performance.now()*0.001;
+            document.getElementById('gammaSlider').value=0; gammaDamping=0; document.getElementById('gammaValue').textContent='0.00'; 
+        });
+
+        // ----- NEW TOGGLE BUTTONS -----
+        document.getElementById('btnToggleComphalphas').addEventListener('click',()=>{
+            comphalphasVisible = !comphalphasVisible;
+            comphalphas.forEach(c=>{ c.visible = comphalphasVisible; });
+            const btn = document.getElementById('btnToggleComphalphas');
+            if(comphalphasVisible){
+                btn.textContent = '👁 Hide Comphalphas';
+                btn.style.borderColor = '#ff4444';
+            } else {
+                btn.textContent = '👁 Show Comphalphas';
+                btn.style.borderColor = '#00ff88';
+                // When hiding comphalphas, automatically show plasma for macroscopic view
+                if(!plasmaVisible){
+                    plasmaVisible = true;
+                    plasmaGroup.visible = true;
+                    document.getElementById('btnTogglePlasma').textContent = '👁 Hide Plasma';
+                }
+            }
+        });
+
+        document.getElementById('btnTogglePlasma').addEventListener('click',()=>{
+            plasmaVisible = !plasmaVisible;
+            plasmaGroup.visible = plasmaVisible;
+            document.getElementById('btnTogglePlasma').textContent = plasmaVisible ? '👁 Hide Plasma' : '👁 Show Plasma';
+        });
+
+        document.getElementById('btnToggleVacuum').addEventListener('click',()=>{
+            vacuumTubeVisible = !vacuumTubeVisible;
+            glassTubeGroup.visible = vacuumTubeVisible;
+            document.getElementById('btnToggleVacuum').textContent = vacuumTubeVisible ? '👁 Hide Vacuum Tube' : '👁 Show Vacuum Tube';
+        });
+
+        createComphalphas(3);
+        document.getElementById('amplitudeValue').textContent='20°'; document.getElementById('amplitudeRadValue').textContent=(20*Math.PI/180).toFixed(3)+' rad';
+
+        // ----- CYCLICAL INTERACTION DIAGRAM - EXACT GEOMETRY -----
+        const icCanvas = document.getElementById('icCanvas');
+        const icCtx = icCanvas.getContext('2d');
+
+        function drawICDiagram(ampEff, sinW) {
+            const W = icCanvas.width, H = icCanvas.height;
+            const cx = W/2, cy = H/2;
+            icCtx.clearRect(0,0,W,H);
+
+            const theta = ampEff * sinW;
+            const thetaDeg = theta * 180 / Math.PI;
+            const tanTheta = Math.tan(theta);
+
+            const D0 = 320;
+            const Ax = cx - D0/2; const Ay = cy;
+            const Bx = cx + D0/2; const By = cy;
+
+            // CCI Center = intersection of Alpha Planes - PURE RULE no clipping
+            let Px = cx;
+            let Py = cy - (D0/2) * tanTheta;
+
+            const dxPA = Px - Ax; const dyPA = Py - Ay;
+            const radius = Math.sqrt(dxPA*dxPA + dyPA*dyPA);
+            const diam = radius * 2;
+
+            // grid
+            icCtx.strokeStyle = 'rgba(255,255,255,0.04)';
+            icCtx.lineWidth = 1;
+            for(let i=-4;i<=4;i++){ icCtx.beginPath(); icCtx.moveTo(cx + i*80, 0); icCtx.lineTo(cx + i*80, H); icCtx.stroke(); icCtx.beginPath(); icCtx.moveTo(0, cy + i*80); icCtx.lineTo(W, cy + i*80); icCtx.stroke(); }
+
+            icCtx.save();
+            icCtx.strokeStyle = '#00aa88';
+            icCtx.setLineDash([10,8]);
+            icCtx.lineWidth = 1;
+            icCtx.beginPath(); icCtx.moveTo(0, cy); icCtx.lineTo(W, cy); icCtx.stroke();
+            icCtx.setLineDash([]);
+            icCtx.restore();
+            icCtx.fillStyle = '#00aa88';
+            icCtx.font = '14px monospace';
+            icCtx.fillText('Common Interaction Plane', 10, cy - 8);
+
+            icCtx.save();
+            icCtx.strokeStyle = 'rgba(255,100,100,0.35)';
+            icCtx.setLineDash([4,6]);
+            icCtx.lineWidth = 1;
+            icCtx.beginPath(); icCtx.moveTo(Ax, 0); icCtx.lineTo(Ax, H); icCtx.stroke();
+            icCtx.beginPath(); icCtx.moveTo(Bx, 0); icCtx.lineTo(Bx, H); icCtx.stroke();
+            icCtx.beginPath(); icCtx.moveTo(Px, Py); icCtx.lineTo(Px, cy); icCtx.stroke();
+            icCtx.setLineDash([]);
+            icCtx.restore();
+
+            icCtx.strokeStyle = '#2a9df4';
+            icCtx.lineWidth = 2.5;
+            icCtx.shadowColor = '#2a9df4';
+            icCtx.shadowBlur = 12;
+            icCtx.beginPath();
+            icCtx.arc(Px, Py, radius, 0, Math.PI*2);
+            icCtx.stroke();
+            icCtx.shadowBlur = 0;
+
+            function drawInfiniteLine(x0,y0, slope, color, w=2) {
+                icCtx.strokeStyle = color;
+                icCtx.lineWidth = w;
+                const len = 900;
+                const dx = len / Math.sqrt(1 + slope*slope);
+                const dy = slope * dx;
+                icCtx.beginPath();
+                icCtx.moveTo(x0 - dx, y0 - dy);
+                icCtx.lineTo(x0 + dx, y0 + dy);
+                icCtx.stroke();
+            }
+            function drawFiniteAxisFixed(x0,y0, slope, length, color, shouldPointUp) {
+                icCtx.strokeStyle = color;
+                icCtx.lineWidth = 3.5;
+                const half = length/2;
+                let dx = half / Math.sqrt(1 + slope*slope);
+                let dy = slope * dx;
+                // enforce constant direction: A always up (dy<0), B always down (dy>0)
+                if (shouldPointUp && dy > 0) { dx = -dx; dy = -dy; }
+                if (!shouldPointUp && dy < 0) { dx = -dx; dy = -dy; }
+                icCtx.beginPath();
+                icCtx.moveTo(x0 - dx, y0 - dy);
+                icCtx.lineTo(x0 + dx, y0 + dy);
+                icCtx.stroke();
+                // arrow at fixed tip
+                const tipX = x0 + dx;
+                const tipY = y0 + dy;
+                const ang = Math.atan2(dy, dx);
+                icCtx.fillStyle = color;
+                icCtx.beginPath();
+                icCtx.moveTo(tipX, tipY);
+                icCtx.lineTo(tipX - 12*Math.cos(ang - Math.PI/6), tipY - 12*Math.sin(ang - Math.PI/6));
+                icCtx.lineTo(tipX - 12*Math.cos(ang + Math.PI/6), tipY - 12*Math.sin(ang + Math.PI/6));
+                icCtx.closePath();
+                icCtx.fill();
+            }
+
+            // Planes - correct synchrony: A = -tan, B = +tan
+            drawInfiniteLine(Ax, Ay, -tanTheta, '#00ff88', 2);
+            drawInfiniteLine(Bx, By, tanTheta, '#00ff88', 2);
+
+            // Alpha Axes - FINITE SIZE and CONSTANT DIRECTION
+            const cotTheta = Math.abs(tanTheta) < 0.0005 ? 2000 : 1 / tanTheta;
+            const axisLength = 320;
+            // Axis A always up, Axis B always down
+            drawFiniteAxisFixed(Ax, Ay, cotTheta, axisLength, '#ff2222', true);
+            drawFiniteAxisFixed(Bx, By, -cotTheta, axisLength, '#ff2222', false);
+
+            icCtx.fillStyle = '#000';
+            icCtx.strokeStyle = '#fff';
+            icCtx.lineWidth = 2;
+            [ [Ax,Ay,'Compalpha A'], [Bx,By,'Compalpha B'] ].forEach(([x,y,label])=>{
+                icCtx.beginPath(); icCtx.arc(x,y,4,0,Math.PI*2); icCtx.fill(); icCtx.stroke();
+                icCtx.fillStyle = '#fff';
+                icCtx.font = '13px monospace';
+                icCtx.fillText(label, x + (label.includes('A') ? -95 : 12), y + 4);
+                icCtx.fillStyle = '#000';
+            });
+
+            icCtx.fillStyle = '#ffcc00';
+            icCtx.shadowColor = '#ffcc00';
+            icCtx.shadowBlur = 10;
+            icCtx.beginPath(); icCtx.arc(Px, Py, 5, 0, Math.PI*2); icCtx.fill();
+            icCtx.shadowBlur = 0;
+            icCtx.fillStyle = '#000';
+            icCtx.beginPath(); icCtx.arc(Px, Py, 3, 0, Math.PI*2); icCtx.fill();
+
+            function drawAngleArcCorrected(x,y, fromAngle, toAngle, r, color, label) {
+                // always draw the smaller arc between from and to
+                let a1 = fromAngle, a2 = toAngle;
+                let diff = a2 - a1;
+                while (diff <= -Math.PI) diff += 2*Math.PI;
+                while (diff > Math.PI) diff -= 2*Math.PI;
+                if (Math.abs(diff) > Math.PI) { a1 = toAngle; a2 = fromAngle; }
+                // ensure start = min for short arc
+                const start = Math.min(a1,a2);
+                const end = Math.max(a1,a2);
+                icCtx.strokeStyle = color;
+                icCtx.lineWidth = 1.5;
+                icCtx.beginPath();
+                icCtx.arc(x, y, r, start, end);
+                icCtx.stroke();
+                if(label){
+                    const mid = (start+end)/2;
+                    const lx = x + Math.cos(mid)*(r+14);
+                    const ly = y + Math.sin(mid)*(r+14);
+                    icCtx.fillStyle = color;
+                    icCtx.font = 'bold 13px monospace';
+                    icCtx.fillText(label, lx-8, ly);
+                }
+            }
+            const vAngle = -Math.PI/2;
+            // ARC CORRECTION: A = v - theta (left), B = v + theta (right)
+            const axisAAngle = vAngle - theta;
+            const axisBAngle = vAngle + theta;
+            drawAngleArcCorrected(Ax, Ay, vAngle, axisAAngle, 80, '#ff4444', `${(-thetaDeg).toFixed(0)}°`);
+            drawAngleArcCorrected(Bx, By, vAngle, axisBAngle, 80, '#ff4444', `${thetaDeg.toFixed(0)}°`);
+
+            icCtx.fillStyle = 'rgba(0,0,0,0.7)';
+            icCtx.fillRect(8,8, W-16, 68);
+            icCtx.fillStyle = '#00ffcc';
+            icCtx.font = 'bold 22px monospace';
+            icCtx.fillText(`Axis A ↑ always up ${(-thetaDeg).toFixed(1)}° | Axis B ↓ always down ${thetaDeg.toFixed(1)}°`, 14, 26);
+            icCtx.fillStyle = '#fff';
+            icCtx.font = '20px monospace';
+            icCtx.fillText(`CCI center Y=${(cy-Py).toFixed(0)}px ${Py<cy?'above':'below'} | diam=${diam.toFixed(0)}px = D0/cosθ`, 14, 46);
+            icCtx.fillStyle = '#aaa';
+            icCtx.font = '20px monospace';
+            icCtx.fillText(`A ↑ fixed, B ↓ fixed | arc A measures A, arc B measures B | D0=${D0}px`, 14, 64);
+
+            document.getElementById('icThetaA').textContent = `${(-thetaDeg).toFixed(1)}°`;
+            document.getElementById('icThetaB').textContent = `${thetaDeg.toFixed(1)}°`;
+            document.getElementById('icDelta').textContent = `${(Math.abs(thetaDeg*2)).toFixed(1)}°`;
+            document.getElementById('icDiam').textContent = diam.toFixed(0);
+            document.getElementById('icRaio').textContent = radius.toFixed(0);
+            document.getElementById('icCentroY').textContent = (cy-Py).toFixed(0);
+        }
+
+        function animate(){ 
+            requestAnimationFrame(animate); 
+            const currentTime=performance.now()*0.001; 
+            const deltaTime = Math.min(0.05, currentTime - lastFrameTime);
+            lastFrameTime = currentTime;
+
+            if(gammaDamping>0){ 
+                const elapsed=currentTime-lastGammaChangeTime; 
+                envelope=envelopeAtChange*Math.exp(-gammaDamping*elapsed); 
+                if(envelope<0.001) envelope=0.001; 
+            } else { 
+                envelope=1; envelopeAtChange=1; 
+            } 
+            const ampEff=amplitude*envelope; 
+            // FIXED FREQUENCY CONTROL: phase accumulator instead of omega * time
+            const angularFreq=2*Math.PI*frequency; 
+            oscillationPhase += angularFreq * deltaTime;
+            // prevent numeric overflow
+            if(oscillationPhase > Math.PI * 1000) oscillationPhase %= (Math.PI*2);
+
+            const sinW=Math.sin(oscillationPhase); 
+            const cosW=Math.cos(oscillationPhase); 
+            
+            comphalphas.forEach((c,i)=>{ 
+                // Keep oscillation physics running even when hidden
+                c.rotation.z=(i%2===0?1:-1)*ampEff*sinW; 
+            }); 
+            // --- ENERGY FOR PLASMA ---
+            const Itot=sumR2; 
+            const ampEffDeg = ampEff * 180 / Math.PI; // effective amplitude in degrees
+            // compute energy norm for white boost
+            const maxEref=2*Math.PI*Math.PI*128*Math.pow(Math.PI,2)*900;
+            const EtotalForPlasma=2*Math.PI*Math.PI*Itot*ampEff*ampEff*frequency*frequency;
+            const EnormPlasma=Math.min(1, EtotalForPlasma/maxEref*2.5); // scaled for visibility
+
+            // Update plasma beam with strong pulsation and white intensity
+            if(plasmaVisible){
+                updatePlasmaVisuals(ampEffDeg, angularFreq, sinW, cosW, EtotalForPlasma, EnormPlasma);
+            } else {
+                // Still update UI labels even when plasma hidden
+                const {name, band} = getPlasmaColorForAmplitude(ampEffDeg);
+                const lbl = document.getElementById('plasmaColorLabel');
+                if(lbl){ lbl.textContent = name; }
+                const bnd = document.getElementById('plasmaBandLabel');
+                if(bnd){ bnd.textContent = band; }
+                const ampLbl = document.getElementById('plasmaAmpLabel');
+                if(ampLbl){ ampLbl.textContent = ampEffDeg.toFixed(1)+'°'; }
+            }
+            
+            const Etotal=2*Math.PI*Math.PI*Itot*ampEff*ampEff*frequency*frequency; 
+            const Ekin=0.5*Itot*Math.pow(ampEff*angularFreq*cosW,2); 
+            const Epot=0.5*Itot*Math.pow(ampEff*angularFreq*sinW,2); 
+            const maxE=2*Math.PI*Math.PI*128*Math.pow(Math.PI,2)*900;
+            const normTotal=Math.min(100,(Etotal/maxE)*100); 
+            document.getElementById('eTotal').textContent=Etotal.toFixed(2)+' ('+normTotal.toFixed(1)+'%)'; 
+            document.getElementById('eKin').textContent=Ekin.toFixed(2); 
+            document.getElementById('ePot').textContent=Epot.toFixed(2); 
+            document.getElementById('envelopeVal').textContent=(envelope*100).toFixed(1)+'%'; 
+            document.getElementById('gammaT').textContent=(gammaDamping*(currentTime-lastGammaChangeTime)).toFixed(2); 
+            const totalBar=Ekin+Epot>0.0001?Ekin+Epot:1; 
+            document.getElementById('eKinBar').style.width=(Ekin/totalBar*100)+'%'; 
+            document.getElementById('ePotBar').style.width=(Epot/totalBar*100)+'%';
+
+            drawICDiagram(ampEff, sinW);
+
+            controls.update(); renderer.render(scene,camera); 
+        } 
+        animate();
+        window.addEventListener('resize',()=>{ camera.aspect=window.innerWidth/window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth,window.innerHeight); });
+    </script>
+</body>
+</html>
